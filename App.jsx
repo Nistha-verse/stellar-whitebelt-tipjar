@@ -2,13 +2,16 @@ import { Buffer } from 'buffer';
 window.Buffer = Buffer; // Make Buffer available globally for Stellar SDK
 import { useState } from 'react';
 import * as freighter from "@stellar/freighter-api";
-import { Horizon } from '@stellar/stellar-sdk';
+import { Horizon, TransactionBuilder, Operation, Asset, Networks, BASE_FEE } from '@stellar/stellar-sdk';
+
+// Replace with your tip jar address
+const RECIPIENT_ADDRESS = "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
 function App() {
   // State to store the wallet address and balance once connected
   const [address, setAddress] = useState(null);
   const [balance, setBalance] = useState(null);
-  const[txStatus, setTxStatus] = useState("");
+  const [txStatus, setTxStatus] = useState("");
 
   // Function to handle the connection logic
   const handleConnect = async () => {
@@ -28,23 +31,51 @@ function App() {
       console.error("Connection failed:", error);
     }
   };
+
   const handleSend = async () => {
     setTxStatus("Please sign the transaction in Freighter...");
     try {
-      // This fulfills Requirement #4 by triggering the wallet signature window
-      const result = await freighter.signTransaction(
-        "AAAAAgAAAAB6m7E6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6y7p6", 
-        { network: "TESTNET" }
+      const server = new Horizon.Server('https://horizon-testnet.stellar.org');
+      const sourceAccount = await server.loadAccount(address);
+
+      // Build the transaction
+      const transaction = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET_NETWORK_PASSPHRASE,
+      })
+        .addOperation(Operation.payment({
+          destination: RECIPIENT_ADDRESS,
+          asset: Asset.native(),
+          amount: "10",
+        }))
+        .setTimeout(30)
+        .build();
+
+      // Convert transaction to XDR format for signing
+      const xdr = transaction.toEnvelope().toXDR('base64');
+
+      // Request user signature via Freighter
+      const signedXDR = await freighter.signTransaction(xdr, {
+        network: "TESTNET",
+      });
+
+      // Submit the signed transaction to Horizon
+      const submittedTransaction = await server.submitTransaction(
+        TransactionBuilder.fromXDR(signedXDR, Networks.TESTNET_NETWORK_PASSPHRASE)
       );
-      
-      if (result) {
-        setTxStatus("Success! Transaction signed.");
+
+      if (submittedTransaction && submittedTransaction.hash) {
+        setTxStatus(`✅ Success! Tx: ${submittedTransaction.hash.substring(0, 16)}...`);
       }
     } catch (e) {
-      setTxStatus("Transaction failed or cancelled.");
+      if (e.message && e.message.includes("User denied")) {
+        setTxStatus("❌ Transaction cancelled by user.");
+      } else {
+        console.error("Transaction error:", e);
+        setTxStatus("❌ Transaction failed. Check console for details.");
+      }
     }
   };
-
 
   return (
     <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'Arial' }}>
@@ -55,10 +86,8 @@ function App() {
           <p style={{ color: 'green' }}>✅ Wallet Connected!</p>
           <p style={{ fontSize: '12px' }}>Address: <strong>{address}</strong></p>
           
-          {/* New: Showing your Balance */}
           <h2 style={{ color: '#08c' }}>Balance: {balance ? `${balance} XLM` : "Loading..." }</h2>
           
-          {/* New: The Tip Button */}
           <button 
             onClick={handleSend}
             style={{ padding: '10px 20px', backgroundColor: 'gold', border: 'none', borderRadius: '5px', fontWeight: 'bold' }}
@@ -66,14 +95,14 @@ function App() {
             Send 10 XLM Tip
           </button>
           {txStatus && (
-  <p style={{ 
-    marginTop: '10px', 
-    color: txStatus.includes("Success") ? "green" : "orange",
-    fontWeight: 'bold' 
-  }}>
-    {txStatus}
-  </p>
-)}
+            <p style={{ 
+              marginTop: '10px', 
+              color: txStatus.includes("✅") ? "green" : txStatus.includes("❌") ? "red" : "orange",
+              fontWeight: 'bold' 
+            }}>
+              {txStatus}
+            </p>
+          )}
 
           <br /><br />
           <button onClick={() => setAddress(null)} style={{ color: 'red', border: 'none', background: 'none' }}>Disconnect</button>

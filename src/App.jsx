@@ -5,7 +5,7 @@ import * as freighter from "@stellar/freighter-api";
 import { Horizon, TransactionBuilder, Operation, Asset, Networks, BASE_FEE } from '@stellar/stellar-sdk';
 
 // Replace with your tip jar address
-const RECIPIENT_ADDRESS = "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+const RECIPIENT_ADDRESS = "GC773GZJLMCANVGQOIKQ6RV6R4SQBI6OJWGODUANSVNXWNRF536RUFNM";
 
 function App() {
   // State to store the wallet address and balance once connected
@@ -44,7 +44,7 @@ function App() {
         networkPassphrase: Networks.TESTNET_NETWORK_PASSPHRASE,
       })
         .addOperation(Operation.payment({
-          destination: RECIPIENT_ADDRESS,
+          destination: GC773GZJLMCANVGQOIKQ6RV6R4SQBI6OJWGODUANSVNXWNRF536RUFNM,
           asset: Asset.native(),
           amount: "10",
         }))
